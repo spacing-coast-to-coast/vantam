@@ -52,7 +52,7 @@ This uses:
 * `VANTAM_MAX_CONCURRENT_REQUESTS` → max parallel CCXT API calls (default 2)
 * `VANTAM_MAX_POOL_CONNS` → Postgres pool connections (default 4)
 
-Data is upserted into the `candles` hypertable by `(ts, symbol, exchange)`.
+Data is upserted into the `ohlcv_1m` hypertable by `(ts, symbol, exchange)`.
 
 ---
 
@@ -74,19 +74,11 @@ Runs `/docker-entrypoint-initdb.d/03_caggs.sql`.
 make db-refresh
 ```
 
-Forces a full backfill of all CAGGs. Heavy operation.
-
 ### Refresh recent data only (fast)
 
 ```bash
 make db-refresh-recent
 ```
-
-Refreshes only the recent tail:
-
-* 1h → last 2 days
-* 1d → last 30 days
-* 1mo → last 13 months
 
 ### Ingest + Refresh shortcut
 
@@ -94,16 +86,11 @@ Refreshes only the recent tail:
 make ingest-refresh
 ```
 
-Runs `make ingest` followed by a fast tail refresh.
-
 ### Compression
 
 ```bash
 make db-compress
 ```
-
-Manually compresses old `ohlcv_1m` chunks (older than 90 days).
-Note: you can also enable automatic compression policies.
 
 ### Check installed policies/jobs
 
@@ -111,71 +98,128 @@ Note: you can also enable automatic compression policies.
 make db-policies-check
 ```
 
-Lists:
-
-* Continuous aggregates and whether they are materialized-only
-* Any background jobs (refresh policies, compression policies)
-
 ---
 
 ## Metrics
 
 Metrics scripts live in `scripts/metrics/` and write results under `analysis/metrics/`.
 
-### Ingest health
+Examples:
 
 ```bash
 make ingest-metrics
-```
-
-* Checks ingest lag and freshness
-* Exports CSV/plots under `analysis/metrics/ingest`
-
-### Storage usage
-
-```bash
 make storage-metrics
-```
-
-* Reports hypertable chunk sizes, indexes, and storage footprint
-* Outputs to `analysis/metrics/storage`
-
-### Coverage analysis
-
-Coverage = completeness of OHLCV candles by minute.
-
-Modes:
-
-```bash
-make coverage-fast   # quick sample-level coverage check
-make coverage-core   # balanced speed vs detail
-make coverage-deep   # full blackout detection, window analysis
-```
-
-All results are written to `analysis/metrics/coverage`.
-
-Options (override on CLI):
-
-* `DAYS=ALL` → lookback horizon (`ALL` or integer days)
-* `HOURS_DAYS=7` → rolling coverage window in days (default 7)
-* `TOP=50` → top N gap intervals to export
-* `WHERE_CLAUSE="WHERE symbol IN ('BTC/USDT')" ` → filter subset of markets
-* `BLACKOUT_THRESHOLD_MINUTES=1440` → what counts as a “blackout” (default: 1 day gap)
-
-### Run everything at once
-
-```bash
+make coverage-core
 make all-metrics
+```
+
+---
+
+## ML
+
+Machine learning pipelines live under `analysis/ml/`.
+The workflow uses a separate `ml` container and Makefile commands.
+
+### Build ML container
+
+```bash
+make ml-build
+```
+
+### Example config
+
+`ml/config.yaml` controls dataset generation:
+
+```yaml
+dataset:
+  exchange: binanceus
+  symbols:
+    - BTC/USDT
+    - ETH/USDT
+    - ADA/USDT
+    - XRP/USDT
+  start: '2019-01-01'
+  end: null
+  resample_to: 15T         # aggregate 1m candles into 15-minute bars
+  out_parquet: analysis/ml/data/dataset.parquet
+  mode: full               # full | incremental
+  horizon_min: 4           # label horizon in minutes
+  up_thr: 0.01             # +1% threshold for "up" label
+  dn_thr: -0.01            # -1% threshold for "down" label
+```
+
+### Generate dataset
+
+Datasets are saved to `analysis/ml/data/`.
+
+* Use mode from `ml/config.yaml`:
+
+```bash
+make ml-dataset
+```
+
+* Force full rebuild:
+
+```bash
+make ml-dataset-full
+```
+
+* Force incremental update (append new rows after `make ingest-refresh`):
+
+```bash
+make ml-dataset-incremental
+```
+
+### End-to-end pipeline
+
+```bash
+make ml-pipeline
 ```
 
 Runs:
 
-* `ingest-metrics`
-* `storage-metrics`
-* `coverage-deep`
+1. `make ingest-refresh` → ingests fresh OHLCV + refreshes aggregates
+2. `make ml-dataset-incremental` → appends dataset under `analysis/ml/data/dataset.parquet`
 
 ---
 
-## ML (coming later)
+## Operational Workflow
 
-Machine learning pipelines and backtests will live under `analysis/ml/`.
+A typical daily workflow:
+
+1. **Start DB**
+
+   ```bash
+   make up
+   ```
+
+2. **Ingest fresh data**
+
+   ```bash
+   make ingest
+   ```
+
+3. **Update aggregates** (auto via policy, or manual refresh)
+
+   ```bash
+   make ingest-refresh
+   ```
+
+4. **Run ML dataset build**
+
+   ```bash
+   make ml-dataset-incremental
+   ```
+
+5. **Run metrics**
+
+   ```bash
+   make coverage-core
+   ```
+
+6. **Tear down**
+
+   ```bash
+   make down
+   ```
+

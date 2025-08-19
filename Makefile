@@ -16,10 +16,11 @@ BLACKOUT_THRESHOLD_MINUTES ?= 1440  # What qualifies as a blackout (1 day)
 
 
 .PHONY: up down clean \
-        ingest \
-        db-caggs db-refresh db-compress db-policies-check db-refresh-recent ingest-refresh \
-        ingest-metrics storage-metrics coverage-metrics coverage-fast coverage-core coverage-deep \
-        all-metrics
+        ingest db-check-data ingest-refresh \
+        db-caggs db-refresh db-compress db-policies-check db-refresh-recent \
+        ingest-metrics storage-metrics coverage-metrics coverage-fast coverage-core coverage-deep all-metrics \
+        ml-build ml-dataset ml-dataset-full ml-dataset-incremental ml-pipeline
+
 
 # ------- Make Commands -------
 
@@ -32,12 +33,17 @@ down:
 
 clean: down
 
-## -------- Ingest data --------
+## -------- DB --------
 ingest:
 	@docker compose run --rm \
 		-e VANTAM_MAX_CONCURRENT_REQUESTS=$(VANTAM_MAX_CONCURRENT_REQUESTS) \
 		-e VANTAM_MAX_POOL_CONNS=$(VANTAM_MAX_POOL_CONNS) \
 		ingestor
+
+db-check-data:
+	@docker compose exec -T $(SERVICE) \
+	  psql -U $(PGUSER) -d $(PGDATABASE) -c \
+	  "SELECT COUNT(*) AS rows, MIN(ts) AS first, MAX(ts) AS last FROM ohlcv_1m;"
 
 ## --- Continuous Aggregates ---
 ## Create/refresh CAGG objects & policies from SQL file
@@ -118,3 +124,31 @@ coverage-deep:
 		./scripts/metrics/coverage_metrics.sh
 
 all-metrics: ingest-metrics storage-metrics coverage-deep
+
+
+# ----------- ML -------------
+ml-build:
+	@docker compose build ml
+
+# Uses the YAML's dataset.mode (full or incremental)
+ml-dataset: ml-build
+	@mkdir -p analysis/ml/data analysis/ml/models analysis/ml/reports
+	@docker compose run --rm -e ML_CONFIG="ml/config.yaml" ml \
+	  python scripts/ml/dataset.py
+
+# Force a full rebuild (overrides YAML mode at runtime)
+ml-dataset-full: ml-build
+	@mkdir -p analysis/ml/data analysis/ml/models analysis/ml/reports
+	@docker compose run --rm -e ML_CONFIG="ml/config.yaml" -e MODE=full ml \
+	  python scripts/ml/dataset.py
+
+# Force incremental (use after ingest-refresh)
+ml-dataset-incremental: ml-build
+	@mkdir -p analysis/ml/data analysis/ml/models analysis/ml/reports
+	@docker compose run --rm -e ML_CONFIG="ml/config.yaml" -e MODE=incremental ml \
+	  python scripts/ml/dataset.py
+
+
+# Convenience: ingest tail, refresh CAGGs, then append dataset
+ml-pipeline: ingest-refresh ml-dataset-incremental
+

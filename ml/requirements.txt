@@ -1,0 +1,22 @@
+# --- Core scientific stack ---
+numpy
+pandas
+pyarrow
+
+# --- Database / IO ---
+SQLAlchemy
+psycopg2-binary
+
+# --- Machine Learning / Models ---
+scikit-learn
+xgboost
+lightgbm
+
+# --- Technical analysis helpers ---
+ta
+
+# --- Plotting / Reports ---
+matplotlib
+
+# --- Config / Utilities ---
+pyyaml

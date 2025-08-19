@@ -1,0 +1,15 @@
+dataset:
+  dn_thr: -0.01
+  end: null
+  exchange: binanceus
+  horizon_min: 4
+  mode: full
+  out_parquet: "/work/analysis/ml/data/dataset.parquet"
+  resample_to: 15T
+  start: '2014-01-01'
+  symbols:
+  - BTC/USDT
+  - ETH/USDT
+  - ADA/USDT
+  - XRP/USDT
+  up_thr: 0.01
