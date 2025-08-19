@@ -19,7 +19,7 @@ BLACKOUT_THRESHOLD_MINUTES ?= 1440  # What qualifies as a blackout (1 day)
         ingest db-check-data ingest-refresh \
         db-caggs db-refresh db-compress db-policies-check db-refresh-recent \
         ingest-metrics storage-metrics coverage-metrics coverage-fast coverage-core coverage-deep all-metrics \
-        ml-build ml-dataset ml-dataset-full ml-dataset-incremental ml-pipeline
+        ml-build ml-dataset ml-dataset-full ml-dataset-incremental ml-pipeline ml-train
 
 
 # ------- Make Commands -------
@@ -149,6 +149,13 @@ ml-dataset-incremental: ml-build
 	  python scripts/ml/dataset.py
 
 
+ml-train: ml-build
+	@docker compose run --rm \
+	  -e ML_CONFIG="ml/config.yaml" \
+	  -e PYTHONPATH="scripts/ml" \
+	  ml python scripts/ml/train.py
+
+
 # Convenience: ingest tail, refresh CAGGs, then append dataset
-ml-pipeline: ingest-refresh ml-dataset-incremental
+ml-pipeline: ingest-refresh ml-dataset-incremental ml-train
 
