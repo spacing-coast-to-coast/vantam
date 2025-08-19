@@ -1,0 +1,81 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg17
+    container_name: vantam-timescaledb
+    environment:
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+      POSTGRES_DB: ${PGDATABASE}
+      TS_TUNE: "true"
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER} -d ${PGDATABASE}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: vantam-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "5050:80"
+    depends_on:
+      - timescaledb
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+  ingestor:
+      build:
+        context: ./ingestor
+        dockerfile: Dockerfile
+      container_name: vantam-ingestor
+      environment:
+        PGHOST: timescaledb
+        PGPORT: "5432"
+        PGUSER: ${PGUSER}
+        PGPASSWORD: ${PGPASSWORD}
+        PGDATABASE: ${PGDATABASE}
+        VANTAM_CONFIG: /app/config.yaml
+      depends_on:
+        timescaledb:
+          condition: service_healthy
+      working_dir: /app
+      command: ["python", "-m", "main"]
+      volumes:
+        - ./ingestor:/app
+
+
+  analysis:
+      build:
+        context: ./analysis
+      image: vantam-analysis:py311
+      container_name: vantam-analysis
+      working_dir: /work
+      volumes:
+        - ./:/work
+
+  ml:
+    build:
+      context: ./ml
+    image: vantam-ml:py311
+    container_name: vantam-ml
+    working_dir: /work
+    volumes:
+      - ./:/work
+    environment:
+      PGHOST: timescaledb
+      PGPORT: "5432"
+      PGUSER: ${PGUSER}
+      PGPASSWORD: ${PGPASSWORD}
+      PGDATABASE: ${PGDATABASE}
+
+volumes:
+  timescale_data:
+  pgadmin_data:

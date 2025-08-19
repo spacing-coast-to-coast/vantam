@@ -1,0 +1,4 @@
+ccxt==4.*
+asyncpg==0.29.*
+pyyaml==6.*
+requests==2.*

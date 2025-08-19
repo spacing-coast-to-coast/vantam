@@ -1,0 +1,13 @@
+exchange: binanceus
+timeframe: 1m
+symbols:
+  - BTC/USDT
+  - ETH/USDT
+  - ADA/USDT
+  - XRP/USDT
+rate_limit_ms: 250
+batch_candles: 1000
+postgres:
+  table: ohlcv_1m
+backfill:
+  start: "2000-01-01T00:00:00Z"
