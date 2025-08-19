@@ -7,6 +7,9 @@ pyarrow
 SQLAlchemy
 psycopg2-binary
 
+# --- Metaflow ---
+metaflow
+
 # --- Machine Learning / Models ---
 scikit-learn
 xgboost

@@ -149,17 +149,9 @@ ml-dataset-incremental: ml-build
 	@docker compose run --rm -e ML_CONFIG="ml/config.yaml" -e MODE=incremental ml \
 	  python scripts/ml/dataset.py
 
-
 ml-profile-dataset:
 	@docker compose run --rm ml bash -lc 'python scripts/ml/profile_dataset.py'
 
-ml-train: ml-build
-	@docker compose run --rm \
-	  -e ML_CONFIG="ml/config.yaml" \
-	  -e PYTHONPATH="scripts/ml" \
-	  ml python scripts/ml/train.py
-
-
 # Convenience: ingest tail, refresh CAGGs, then append dataset
-ml-pipeline: ingest-refresh ml-dataset-incremental ml-train
+ml-pipeline: ingest-refresh ml-dataset-incremental ml-profile-dataset
 
