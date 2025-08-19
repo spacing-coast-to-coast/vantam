@@ -20,16 +20,3 @@ SELECT create_hypertable('ohlcv_1m',
 
 CREATE INDEX IF NOT EXISTS ohlcv_1m_symbol_ts_idx ON ohlcv_1m (symbol, ts DESC);
 CREATE INDEX IF NOT EXISTS ohlcv_1m_exchange_idx  ON ohlcv_1m (exchange);
-
--- (Optional) continuous aggregate example (comment in later)
--- CREATE MATERIALIZED VIEW ohlcv_5m
--- WITH (timescaledb.continuous) AS
--- SELECT time_bucket('5 minutes', ts) AS bucket,
---        symbol, exchange,
---        first(open, ts)  AS open,
---        max(high)        AS high,
---        min(low)         AS low,
---        last(close, ts)  AS close,
---        sum(volume)      AS volume
--- FROM ohlcv_1m
--- GROUP BY bucket, symbol, exchange;
