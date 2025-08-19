@@ -8,7 +8,7 @@ from joblib import dump
 
 from features import add_basic_features, FEATURE_COLUMNS
 from labels import add_labels
-from algorithms import REGISTRY  # <- models are in scripts/ml/algorithms
+from algorithms import REGISTRY  # models live in scripts/ml/algorithms
 
 # ---------- plotting helpers ----------
 
@@ -142,15 +142,19 @@ def main():
     cm_arr = confusion_matrix(y_test, y_pred, labels=classes)
     cm = cm_arr.tolist()
 
-    # Timestamp for artifacts
+    # Timestamp + per-run directories (group artifacts neatly)
     ts_tag = time.strftime("%Y%m%d_%H%M%S")
+    run_models_dir = os.path.join(models_dir, ts_tag)
+    run_reports_dir = os.path.join(reports_dir, ts_tag)
+    os.makedirs(run_models_dir, exist_ok=True)
+    os.makedirs(run_reports_dir, exist_ok=True)
 
     # Save CM PNG
-    cm_png = os.path.join(reports_dir, f"cm_{ts_tag}.png")
+    cm_png = os.path.join(run_reports_dir, "cm.png")
     save_confusion_matrix_png(cm, labels=classes, out_path=cm_png, title=f"CM: {model_name}")
 
     # Save model
-    model_path = os.path.join(models_dir, f"model_{ts_tag}.joblib")
+    model_path = os.path.join(run_models_dir, "model.joblib")
     dump(getattr(model, "clf", model), model_path)
 
     # Save metrics
@@ -169,8 +173,10 @@ def main():
         "horizon_bars": horizon_bars,
         "up_thr": up_thr,
         "dn_thr": dn_thr,
+        "classes": list(map(int, classes)) if all(isinstance(c, (int, np.integer)) for c in classes) else list(map(str, classes)),
+        "ts_tag": ts_tag,
     }
-    metrics_path = os.path.join(reports_dir, f"metrics_{ts_tag}.json")
+    metrics_path = os.path.join(run_reports_dir, "metrics.json")
     with open(metrics_path, "w") as f:
         json.dump(metrics, f, indent=2)
 
@@ -182,22 +188,35 @@ def main():
         proba_df = pd.DataFrame(y_proba)
         proba_df.columns = [f"p_{idx_to_class[i]}" for i in range(proba_df.shape[1])]
         preds = pd.concat([preds.reset_index(drop=True), proba_df.reset_index(drop=True)], axis=1)
-    preds_path = os.path.join(reports_dir, f"preds_{ts_tag}.parquet")
+    preds_path = os.path.join(run_reports_dir, "preds.parquet")
     preds.to_parquet(preds_path, index=False)
 
     # Feature importance (if available)
     fi = extract_feature_importance(getattr(model, "clf", model), FEATURE_COLUMNS)
     if fi is not None:
         names, imps = fi
-        fi_csv = os.path.join(reports_dir, f"feat_importance_{ts_tag}.csv")
-        fi_png = os.path.join(reports_dir, f"feat_importance_{ts_tag}.png")
+        fi_csv = os.path.join(run_reports_dir, "feat_importance.csv")
+        fi_png = os.path.join(run_reports_dir, "feat_importance.png")
         save_feature_importance(names, imps, fi_csv, fi_png, top_k=25, title=f"Feature Importance: {model_name}")
         print(f"✅ Saved feature importance → {fi_csv}, {fi_png}")
 
-    print(f"✅ Saved model → {model_path}")
-    print(f"✅ Saved metrics → {metrics_path}")
-    print(f"✅ Saved predictions → {preds_path}")
-    print(f"✅ Saved confusion matrix → {cm_png}")
+    # Optional: snapshot the config used for reproducibility
+    cfg_path = os.path.join(run_reports_dir, "config.yaml")
+    with open(cfg_path, "w") as f:
+        yaml.safe_dump(cfg, f)
+
+    print("\n✅ Run complete.")
+    print(f"   Model dir : {run_models_dir}")
+    print(f"   Reports   : {run_reports_dir}")
+    print(f"   Files     :")
+    print(f"     - {model_path}")
+    print(f"     - {metrics_path}")
+    print(f"     - {preds_path}")
+    print(f"     - {cm_png}")
+    if fi is not None:
+        print(f"     - {os.path.join(run_reports_dir, 'feat_importance.csv')}")
+        print(f"     - {os.path.join(run_reports_dir, 'feat_importance.png')}")
+    print(f"     - {cfg_path}")
 
 if __name__ == "__main__":
     main()

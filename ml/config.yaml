@@ -15,8 +15,8 @@ dataset:
   up_thr: 0.01
 
 model:
-  name: xgboost
-  test_days: 30
+  name: lightgbm
+  test_days: 365
   class_weights: true      # used for logreg/rf only unless you explicitly pass class_weight
   random_state: 42
   options:
@@ -43,10 +43,12 @@ model:
       eval_metric: "mlogloss"
 
     lightgbm:
+      objective: multiclass
+      num_class: 3          # because labels are {-1,0,1} (we encode to 0..2)
       n_estimators: 600
       num_leaves: 64
       max_depth: -1
       learning_rate: 0.05
-      subsample: 0.9
-      colsample_bytree: 0.9
+      subsample: 0.9        # alias: bagging_fraction
+      colsample_bytree: 0.9 # alias: feature_fraction
       reg_lambda: 1.0
