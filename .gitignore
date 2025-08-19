@@ -1,4 +1,5 @@
 .env
 analysis/metrics
-*.pyc
 
+*.pyc
+__pycache__/
